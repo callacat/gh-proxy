@@ -24,6 +24,7 @@ https://你的域名/https://github.com/user/repo/releases/download/v1.0.0/app.z
 
 ### 🚀 Cloudflare Workers（免费计划：10万请求/天）
 
+**方式一：wrangler CLI**
 ```bash
 npm install -g wrangler
 cd gh-proxy
@@ -31,7 +32,10 @@ wrangler login
 wrangler deploy src/cf-worker.js --name gh-proxy
 ```
 
-或直接在 Workers Dashboard 粘贴 `src/cf-worker.js` 内容。
+**方式二：Workers Dashboard 直接粘贴**
+打开 [Cloudflare Workers Dashboard](https://dash.cloudflare.com/?to=workers)，创建新 Worker，将 `src/cf-worker.js` 的全部内容粘贴到代码编辑器即可。
+
+> ⚠️ `src/cf-worker.js` 是自包含单文件，同时适用于 CLI 和 Dashboard。
 
 ### ▲ Vercel（免费计划）
 
