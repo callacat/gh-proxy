@@ -1,7 +1,8 @@
 import { extractGitHubUrl, proxyFetch, handlePreflight } from '../src/proxy-core.js';
 
 export default async function handler(req, res) {
-  if (req.method === 'OPTIONS') {
+  try {
+    if (req.method === 'OPTIONS') {
     const r = handlePreflight();
     r.headers.forEach((v, k) => res.setHeader(k, v));
     res.status(204).end();
@@ -40,5 +41,9 @@ export default async function handler(req, res) {
     await pump();
   } else {
     res.end();
+  }
+  } catch (err) {
+    res.writeHead(502, { 'content-type': 'text/plain' });
+    res.end(`Proxy Error: ${err.message}`);
   }
 }

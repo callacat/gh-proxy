@@ -1,6 +1,17 @@
 // proxy-core.js — 核心代理逻辑，零外部依赖
 // URL 映射：https://your.domain/https://github.com/user/repo/...
 
+// ponytail: module-level constants, avoid per-call allocation
+const FORWARD_HEADERS = [
+  'user-agent', 'range', 'accept-encoding', 'accept',
+  'if-none-match', 'if-modified-since',
+];
+const PASS_HEADERS = [
+  'content-type', 'content-length', 'content-disposition',
+  'cache-control', 'etag', 'last-modified', 'accept-ranges',
+  'content-range', 'transfer-encoding',
+];
+
 /**
  * 从请求路径提取真实 GitHub URL
  * 支持格式：
@@ -14,12 +25,12 @@ export function extractGitHubUrl(rawPath) {
   if (!rawPath) return null;
 
   // 优先匹配完整格式含 `github.com`
-  const reFull = /github\.com\/[\w.-]+(?:[\w./@~:-]*)?/i;
+  const reFull = /github\.com\/[\w.%+-]+(?:[\w./@~:%+=-]*)?/i;
   let m = rawPath.match(reFull);
   if (m) return 'https://' + m[0];
 
   // 短格式：/github/ 或 /gh/ 前缀
-  const reShort = /^\/(?:github|gh)\/([\w.-]+(?:[\w./@~:-]*)?)\/?/i;
+  const reShort = /^\/(?:github|gh)\/([\w.%+-]+(?:[\w./@~:%+=-]*)?)\/?/i;
   m = rawPath.match(reShort);
   if (m) return 'https://github.com/' + m[1];
 
@@ -64,10 +75,6 @@ export async function proxyFetch(targetUrl, originalReq, options = {}) {
   const fetchFn = options.fetchFn || globalThis.fetch;
 
   const headers = new Headers();
-  const FORWARD_HEADERS = [
-    'user-agent', 'range', 'accept-encoding', 'accept',
-    'if-none-match', 'if-modified-since',
-  ];
   if (originalReq?.headers) {
     for (const h of FORWARD_HEADERS) {
       const val = originalReq.headers.get(h);
@@ -77,8 +84,10 @@ export async function proxyFetch(targetUrl, originalReq, options = {}) {
   if (!headers.has('user-agent')) {
     headers.set('user-agent', 'Mozilla/5.0 (compatible; GhProxy/1.0)');
   }
-  // 禁用 GitHub 的 gzip（让代理层处理不同编码）
-  headers.set('accept-encoding', 'identity');
+  // 透传或默认使用 gzip（节省 GitHub→代理带宽）
+  if (!headers.has('accept-encoding')) {
+    headers.set('accept-encoding', 'gzip, identity');
+  }
 
   const ghResponse = await fetchFn(targetUrl, {
     redirect: 'manual',
@@ -93,27 +102,26 @@ export async function proxyFetch(targetUrl, originalReq, options = {}) {
         redirect: 'follow',
         headers,
       });
-      return buildResponse(finalResponse, originalReq);
+      return buildResponse(finalResponse);
     }
     // 不允许的重定向 → 返回原始 302（浏览器自己处理外面的跳转）
-    return buildResponse(ghResponse, originalReq);
+    return buildResponse(ghResponse);
   }
 
-  return buildResponse(ghResponse, originalReq);
+  return buildResponse(ghResponse);
 }
 
-function buildResponse(ghResponse, originalReq) {
+function buildResponse(ghResponse) {
   const headers = new Headers();
 
-  const PASS_HEADERS = [
-    'content-type', 'content-length', 'content-disposition',
-    'cache-control', 'etag', 'last-modified', 'accept-ranges',
-    'content-range', 'transfer-encoding',
-  ];
   for (const h of PASS_HEADERS) {
     const val = ghResponse.headers.get(h);
     if (val) headers.set(h, val);
   }
+
+  // 透传 Content-Encoding（gzip 等压缩）
+  const ce = ghResponse.headers.get('content-encoding');
+  if (ce) headers.set('content-encoding', ce);
 
   // CORS
   headers.set('access-control-allow-origin', '*');
