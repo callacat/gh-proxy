@@ -1,0 +1,8 @@
+{
+  "name": "gh-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "GitHub download proxy — CF Workers / Vercel / Netlify / Docker",
+  "license": "MIT"
+}
