@@ -107,10 +107,28 @@ export function handlePreflight() {
     status: 204,
     headers: {
       'access-control-allow-origin': '*',
-      'access-control-allow-methods': 'GET, HEAD, OPTIONS',
+      'access-control-allow-methods': 'GET, HEAD, POST, OPTIONS',
       'access-control-allow-headers':
-        'Range, If-None-Match, If-Modified-Since',
+        'Range, If-None-Match, If-Modified-Since, Content-Type',
       'access-control-max-age': '86400',
     },
   });
+}
+
+/** 从 POST body 提取 GitHub URL */
+export async function extractUrlFromPost(request) {
+  const ct = request.headers?.get?.('content-type') || '';
+  if (ct.includes('application/json')) {
+    const body = typeof request.json === 'function' ? await request.json() : request.body;
+    return body?.url || body?.target || null;
+  }
+  if (ct.includes('text/plain')) {
+    const text = typeof request.text === 'function' ? await request.text() : request.body;
+    return (text || '').trim() || null;
+  }
+  if (ct.includes('multipart') || ct.includes('form-urlencoded')) {
+    const form = typeof request.formData === 'function' ? await request.formData().catch(() => null) : null;
+    if (form) return form.get('url') || form.get('target') || null;
+  }
+  return null;
 }

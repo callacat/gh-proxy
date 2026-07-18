@@ -1,4 +1,4 @@
-import { extractGitHubUrl, proxyFetch, handlePreflight } from '../../src/proxy-core.js';
+import { extractGitHubUrl, proxyFetch, handlePreflight, extractUrlFromPost } from '../../src/proxy-core.js';
 
 export const handler = async (event) => {
   try {
@@ -8,12 +8,20 @@ export const handler = async (event) => {
       r.headers.forEach((v, k) => { headers[k] = v; });
       return { statusCode: 204, headers };
     }
-    if (event.httpMethod !== 'GET' && event.httpMethod !== 'HEAD') {
+    if (!['GET', 'HEAD', 'POST'].includes(event.httpMethod)) {
       return { statusCode: 405, body: 'Method Not Allowed' };
     }
 
-    const targetUrl = extractGitHubUrl(event.path);
-    if (!targetUrl) {
+    let targetUrl = extractGitHubUrl(event.path);
+    if (event.httpMethod === 'POST' && !targetUrl && event.body) {
+      const fakeReq = {
+        headers: new Headers({ 'content-type': event.headers?.['content-type'] || 'text/plain' }),
+        body: event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString() : event.body,
+        json: async function () { return JSON.parse(this.body); },
+        text: async function () { return this.body; },
+      };
+      targetUrl = await extractUrlFromPost(fakeReq) || targetUrl;
+    }
       return {
         statusCode: 400,
         headers: { 'content-type': 'text/plain; charset=utf-8' },

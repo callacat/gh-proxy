@@ -49,20 +49,38 @@ function buildResponse(ghRes) {
   });
 }
 
+/** POST body → GitHub URL */
+async function extractUrlFromPost(request) {
+  const ct = request.headers.get('content-type') || '';
+  if (ct.includes('application/json')) {
+    const body = await request.json();
+    return body?.url || body?.target || null;
+  }
+  if (ct.includes('text/plain')) {
+    return (await request.text()).trim() || null;
+  }
+  const form = await request.formData().catch(() => null);
+  if (form) return form.get('url') || form.get('target') || null;
+  return null;
+}
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: {
       'access-control-allow-origin': '*',
-      'access-control-allow-methods': 'GET, HEAD, OPTIONS',
-      'access-control-allow-headers': 'Range, If-None-Match, If-Modified-Since',
+      'access-control-allow-methods': 'GET, HEAD, POST, OPTIONS',
+      'access-control-allow-headers': 'Range, If-None-Match, If-Modified-Since, Content-Type',
       'access-control-max-age': '86400',
     }});
-    if (request.method !== 'GET' && request.method !== 'HEAD') {
+    // Support GET/HEAD/POST (POST can pass url in body or query)
+    if (!['GET', 'HEAD', 'POST'].includes(request.method)) {
       return new Response('Method Not Allowed', { status: 405 });
     }
 
-    const target = extractGitHubUrl(url.pathname);
+    let target = request.method === 'POST'
+      ? await extractUrlFromPost(request) || extractGitHubUrl(url.pathname)
+      : extractGitHubUrl(url.pathname);
     if (!target) return new Response(
       '用法: /https://github.com/user/repo/...\n  或: /github/user/repo/...\n  或: /gh/user/repo/...',
       { status: 400, headers: { 'content-type': 'text/plain; charset=utf-8' } },

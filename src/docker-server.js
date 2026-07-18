@@ -4,6 +4,14 @@ import { extractGitHubUrl, proxyFetch, handlePreflight } from './proxy-core.js';
 
 const PORT = parseInt(process.env.PORT || '8080', 10);
 
+function readBody(req) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString()));
+  });
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
 
@@ -15,13 +23,28 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
+  if (!['GET', 'HEAD', 'POST'].includes(req.method)) {
     res.writeHead(405, { 'content-type': 'text/plain' });
     res.end('Method Not Allowed');
     return;
   }
 
-  const targetUrl = extractGitHubUrl(url.pathname);
+  // POST: read body, try JSON/plain/form
+  let targetUrl = extractGitHubUrl(url.pathname);
+  if (req.method === 'POST' && !targetUrl) {
+    const body = await readBody(req);
+    const ct = req.headers['content-type'] || '';
+    let raw = null;
+    if (ct.includes('json')) {
+      try { const j = JSON.parse(body); raw = j.url || j.target; } catch {}
+    } else if (ct.includes('form')) {
+      try { raw = new URLSearchParams(body).get('url') || new URLSearchParams(body).get('target'); } catch {}
+    } else {
+      raw = body.trim();
+    }
+    if (raw) targetUrl = extractGitHubUrl(raw);
+    if (!targetUrl) targetUrl = extractGitHubUrl(body.trim());
+  }
   if (!targetUrl) {
     res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('用法: /https://github.com/user/repo/...\n  或: /github/user/repo/...');
