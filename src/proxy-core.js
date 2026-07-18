@@ -37,32 +37,6 @@ export function extractGitHubUrl(rawPath) {
   return null;
 }
 
-// GitHub 原始域名列表（用于 302 重定向放行）
-const GITHUB_DOMAINS = [
-  'github.com',
-  'raw.githubusercontent.com',
-  'codeload.github.com',
-  'objects.githubusercontent.com',
-  'github-releases.githubusercontent.com',
-  'media.githubusercontent.com',
-  'github-production-release-asset-2e65be.s3.amazonaws.com',
-  'github-user-contributed-assets.s3.amazonaws.com',
-];
-
-/**
- * 检查域名是否在转发白名单
- * @param {string} url - 重定向 URL
- * @returns {boolean}
- */
-export function isAllowedRedirect(url) {
-  try {
-    const host = new URL(url).hostname;
-    return GITHUB_DOMAINS.some(d => host === d || host.endsWith('.' + d));
-  } catch {
-    return false;
-  }
-}
-
 /**
  * 执行代理 fetch
  * @param {string} targetUrl - 提取的 GitHub URL
@@ -84,30 +58,15 @@ export async function proxyFetch(targetUrl, originalReq, options = {}) {
   if (!headers.has('user-agent')) {
     headers.set('user-agent', 'Mozilla/5.0 (compatible; GhProxy/1.0)');
   }
-  // 透传或默认使用 gzip（节省 GitHub→代理带宽）
   if (!headers.has('accept-encoding')) {
     headers.set('accept-encoding', 'gzip, identity');
   }
 
+  // redirect: follow 自动处理多跳重定向链（github.com → CDN → S3）
   const ghResponse = await fetchFn(targetUrl, {
-    redirect: 'manual',
+    redirect: 'follow',
     headers,
   });
-
-  // 处理 302 重定向（GitHub releases / raw 经常会跳 CDN）
-  if (ghResponse.status >= 300 && ghResponse.status < 400) {
-    const location = ghResponse.headers.get('location');
-    if (location && isAllowedRedirect(location)) {
-      const finalResponse = await fetchFn(location, {
-        redirect: 'follow',
-        headers,
-      });
-      return buildResponse(finalResponse);
-    }
-    // 不允许的重定向 → 返回原始 302（浏览器自己处理外面的跳转）
-    return buildResponse(ghResponse);
-  }
-
   return buildResponse(ghResponse);
 }
 

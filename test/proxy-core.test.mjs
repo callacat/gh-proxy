@@ -1,18 +1,13 @@
 // proxy-core.test.mjs — 核心逻辑单元测试
-import { extractGitHubUrl, isAllowedRedirect } from '../src/proxy-core.js';
+import { extractGitHubUrl } from '../src/proxy-core.js';
 
 let passed = 0;
 let total = 0;
 
 function test(name, fn) {
   total++;
-  try {
-    fn();
-    passed++;
-    console.log(`  ✅ ${name}`);
-  } catch (e) {
-    console.log(`  ❌ ${name} — ${e.message}`);
-  }
+  try { fn(); passed++; console.log(`  ✅ ${name}`); }
+  catch (e) { console.log(`  ❌ ${name} — ${e.message}`); }
 }
 
 function assertEqual(actual, expected, msg) {
@@ -45,29 +40,21 @@ for (const [input, expected] of urlTests) {
   });
 }
 
-// --- isAllowedRedirect ---
-console.log('\n🔄 isAllowedRedirect');
-
-const redirectTests = [
-  ['https://objects.githubusercontent.com/xxx', true],
-  ['https://raw.githubusercontent.com/user/repo/branch/file', true],
-  ['https://codeload.github.com/user/repo/tar.gz/refs', true],
-  ['https://example.com/bad', false],
-  ['https://github.com/user/repo', true],
-  ['invalid-url', false],
-];
-
-for (const [url, expected] of redirectTests) {
-  test(`redirect('${url.slice(0, 50)}') → ${expected}`, () => {
-    assertEqual(isAllowedRedirect(url), expected, 'isAllowedRedirect');
-  });
-}
-
-// --- 空/边界情况 ---
+// --- 边界情况 ---
 console.log('\n🧪 边界情况');
 test('null input → null', () => assertEqual(extractGitHubUrl(null), null));
 test('empty string → null', () => assertEqual(extractGitHubUrl(''), null));
 test('no match → null', () => assertEqual(extractGitHubUrl('/foo/bar'), null));
+
+// --- 百分号编码 ---
+console.log('\n🔣 百分号编码');
+test('percent-encoded branch', () => {
+  assertEqual(
+    extractGitHubUrl('/https://github.com/user/repo/raw/v1%2E0/file.txt'),
+    'https://github.com/user/repo/raw/v1%2E0/file.txt',
+    'percent-encoded',
+  );
+});
 
 console.log(`\n📊 结果: ${passed}/${total} passed`);
 process.exit(passed === total ? 0 : 1);

@@ -8,13 +8,6 @@ const PASS_HEADERS = [
   'cache-control', 'etag', 'last-modified', 'accept-ranges',
   'content-range', 'transfer-encoding',
 ];
-const GITHUB_DOMAINS = [
-  'github.com', 'raw.githubusercontent.com', 'codeload.github.com',
-  'objects.githubusercontent.com', 'github-releases.githubusercontent.com',
-  'media.githubusercontent.com',
-  'github-production-release-asset-2e65be.s3.amazonaws.com',
-  'github-user-contributed-assets.s3.amazonaws.com',
-];
 
 function extractGitHubUrl(rawPath) {
   if (!rawPath) return null;
@@ -22,15 +15,6 @@ function extractGitHubUrl(rawPath) {
   if (m) return 'https://' + m[0];
   const n = rawPath.match(/^\/(?:github|gh)\/([\w.%+-]+(?:[\w./@~:%+=-]*)?)\/?/i);
   return n ? 'https://github.com/' + n[1] : null;
-}
-
-function isAllowedRedirect(url) {
-  try {
-    return GITHUB_DOMAINS.some(d => {
-      const h = new URL(url).hostname;
-      return h === d || h.endsWith('.' + d);
-    });
-  } catch { return false; }
 }
 
 async function proxyFetch(targetUrl, request) {
@@ -42,22 +26,27 @@ async function proxyFetch(targetUrl, request) {
   if (!headers.has('user-agent')) headers.set('user-agent', 'Mozilla/5.0 (compatible; GhProxy/1.0)');
   if (!headers.has('accept-encoding')) headers.set('accept-encoding', 'gzip, identity');
 
-  const ghRes = await fetch(targetUrl, { redirect: 'manual', headers });
-  if (ghRes.status >= 300 && ghRes.status < 400) {
-    const loc = ghRes.headers.get('location');
-    if (loc && isAllowedRedirect(loc)) return buildResponse(await fetch(loc, { redirect: 'follow', headers }));
-  }
-  return buildResponse(ghRes);
+  // Follow the full redirect chain (Releases → CDN → S3 can be multi-hop)
+  let response = await fetch(targetUrl, { redirect: 'follow', headers });
+  return buildResponse(response);
 }
 
 function buildResponse(ghRes) {
   const headers = new Headers();
-  for (const h of PASS_HEADERS) { const v = ghRes.headers.get(h); if (v) headers.set(h, v); }
-  const ce = ghRes.headers.get('content-encoding'); if (ce) headers.set('content-encoding', ce);
+  for (const h of PASS_HEADERS) {
+    const v = ghRes.headers.get(h);
+    if (v) headers.set(h, v);
+  }
+  const ce = ghRes.headers.get('content-encoding');
+  if (ce) headers.set('content-encoding', ce);
   headers.set('access-control-allow-origin', '*');
   headers.set('access-control-expose-headers', 'content-length, content-range, accept-ranges');
   if (!headers.has('cache-control')) headers.set('cache-control', 'public, max-age=3600, s-maxage=3600');
-  return new Response(ghRes.body, { status: ghRes.status, statusText: ghRes.statusText, headers });
+  return new Response(ghRes.body, {
+    status: ghRes.status,
+    statusText: ghRes.statusText,
+    headers,
+  });
 }
 
 export default {
@@ -69,13 +58,16 @@ export default {
       'access-control-allow-headers': 'Range, If-None-Match, If-Modified-Since',
       'access-control-max-age': '86400',
     }});
-    if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method Not Allowed', { status: 405 });
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return new Response('Method Not Allowed', { status: 405 });
+    }
 
     const target = extractGitHubUrl(url.pathname);
     if (!target) return new Response(
       '用法: /https://github.com/user/repo/...\n  或: /github/user/repo/...\n  或: /gh/user/repo/...',
       { status: 400, headers: { 'content-type': 'text/plain; charset=utf-8' } },
     );
+    // 裸仓库路径 → 302 到 zipball
     if (/^https:\/\/github\.com\/[^/]+\/[^/]+$/.test(target)) {
       return Response.redirect(target + '/archive/refs/heads/main.zip', 302);
     }
