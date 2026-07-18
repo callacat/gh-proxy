@@ -17,7 +17,7 @@ function extractGitHubUrl(rawPath) {
   return n ? 'https://github.com/' + n[1] : null;
 }
 
-async function proxyFetch(targetUrl, request) {
+async function proxyFetch(targetUrl, request, ctx) {
   const headers = new Headers();
   for (const h of FORWARD_HEADERS) {
     const v = request?.headers?.get(h);
@@ -26,8 +26,19 @@ async function proxyFetch(targetUrl, request) {
   if (!headers.has('user-agent')) headers.set('user-agent', 'Mozilla/5.0 (compatible; GhProxy/1.0)');
   if (!headers.has('accept-encoding')) headers.set('accept-encoding', 'gzip, identity');
 
-  // Follow the full redirect chain (Releases → CDN → S3 can be multi-hop)
-  let response = await fetch(targetUrl, { redirect: 'follow', headers });
+  // 边缘缓存：命中直接返回，避免穿透到 GitHub
+  const cacheKey = new Request(targetUrl);
+  const cached = await caches.default.match(cacheKey);
+  if (cached) return buildResponse(cached);
+
+  const response = await fetch(targetUrl, { redirect: 'follow', headers });
+
+  // 小文件（<100MB）写入边缘缓存，大文件跳过避免 OOM
+  const cl = response.headers.get('content-length');
+  if (response.ok && ctx && cl && parseInt(cl, 10) < 100_000_000) {
+    ctx.waitUntil(caches.default.put(cacheKey, response.clone()));
+  }
+
   return buildResponse(response);
 }
 
@@ -65,7 +76,7 @@ async function extractUrlFromPost(request) {
 }
 
 export default {
-  async fetch(request) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: {
       'access-control-allow-origin': '*',
@@ -73,7 +84,6 @@ export default {
       'access-control-allow-headers': 'Range, If-None-Match, If-Modified-Since, Content-Type',
       'access-control-max-age': '86400',
     }});
-    // Support GET/HEAD/POST (POST can pass url in body or query)
     if (!['GET', 'HEAD', 'POST'].includes(request.method)) {
       return new Response('Method Not Allowed', { status: 405 });
     }
@@ -85,10 +95,9 @@ export default {
       '用法: /https://github.com/user/repo/...\n  或: /github/user/repo/...\n  或: /gh/user/repo/...',
       { status: 400, headers: { 'content-type': 'text/plain; charset=utf-8' } },
     );
-    // 裸仓库路径 → 302 到 zipball
     if (/^https:\/\/github\.com\/[^/]+\/[^/]+$/.test(target)) {
       return Response.redirect(target + '/archive/refs/heads/main.zip', 302);
     }
-    return proxyFetch(target, request);
+    return proxyFetch(target, request, ctx);
   },
 };
