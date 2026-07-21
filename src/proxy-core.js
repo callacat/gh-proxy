@@ -24,10 +24,15 @@ const PASS_HEADERS = [
 export function extractGitHubUrl(rawPath) {
   if (!rawPath) return null;
 
-  // 优先匹配完整格式含 `github.com` 或 `raw.githubusercontent.com`
-  const reFull = /(?:raw\.githubusercontent|github)\.com\/[\w.%+-]+(?:[\w./@~:%+=-]*)?/i;
+  // 优先匹配完整格式含 `github.com`、`raw.githubusercontent.com`、`gist.github.com` 或 `gist.githubusercontent.com`
+  const reFull = /(?:raw\.githubusercontent|gist\.githubusercontent|gist\.github|github)\.com\/[\w.%+-]+(?:[\w./@~:%+=-]*)?/i;
   let m = rawPath.match(reFull);
-  if (m) return 'https://' + m[0];
+  if (m) {
+    // gist.github.com 解析在很多环境不稳定，统一重写为 gist.githubusercontent.com
+    const host = m[0].split('/')[0];
+    if (host === 'gist.github.com') m[0] = m[0].replace('gist.github.com', 'gist.githubusercontent.com');
+    return 'https://' + m[0];
+  }
 
   // 短格式：/github/ 或 /gh/ 前缀
   const reShort = /^\/(?:github|gh)\/([\w.%+-]+(?:[\w./@~:%+=-]*)?)\/?/i;

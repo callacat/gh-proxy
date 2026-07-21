@@ -11,8 +11,13 @@ const PASS_HEADERS = [
 
 function extractGitHubUrl(rawPath) {
   if (!rawPath) return null;
-  const m = rawPath.match(/(?:raw\.githubusercontent|github)\.com\/[\w.%+-]+(?:[\w./@~:%+=-]*)?/i);
-  if (m) return 'https://' + m[0];
+  const m = rawPath.match(/(?:raw\.githubusercontent|gist\.githubusercontent|gist\.github|github)\.com\/[\w.%+-]+(?:[\w./@~:%+=-]*)?/i);
+  if (m) {
+    // gist.github.com 在很多环境解析不稳定，统一转写为 gist.githubusercontent.com
+    const host = m[0].split('/')[0];
+    if (host === 'gist.github.com') m[0] = m[0].replace('gist.github.com', 'gist.githubusercontent.com');
+    return 'https://' + m[0];
+  }
   const n = rawPath.match(/^\/(?:github|gh)\/([\w.%+-]+(?:[\w./@~:%+=-]*)?)\/?/i);
   return n ? 'https://github.com/' + n[1] : null;
 }

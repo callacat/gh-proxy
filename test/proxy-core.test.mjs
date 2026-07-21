@@ -39,6 +39,18 @@ const urlTests = [
    'https://raw.githubusercontent.com/user/repo/main/file.txt'],
   ['/https://raw.githubusercontent.com/user/repo/branch/file',
    'https://raw.githubusercontent.com/user/repo/branch/file'],
+  // gist.github.com (normalized to gist.githubusercontent.com)
+  ['https://gist.github.com/user/123456789',
+   'https://gist.githubusercontent.com/user/123456789'],
+  ['https://gist.github.com/user/123456789/raw/file.txt',
+   'https://gist.githubusercontent.com/user/123456789/raw/file.txt'],
+  ['/https://gist.github.com/user/123456789/archive/abc123.tar.gz',
+   'https://gist.githubusercontent.com/user/123456789/archive/abc123.tar.gz'],
+  // gist.githubusercontent.com (raw endpoints)
+  ['https://gist.githubusercontent.com/user/123456789/raw/file.txt',
+   'https://gist.githubusercontent.com/user/123456789/raw/file.txt'],
+  ['/gist.githubusercontent.com/user/123456789/raw/file.txt',
+   'https://gist.githubusercontent.com/user/123456789/raw/file.txt'],
 ];
 
 for (const [input, expected] of urlTests) {
