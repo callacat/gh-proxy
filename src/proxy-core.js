@@ -24,8 +24,8 @@ const PASS_HEADERS = [
 export function extractGitHubUrl(rawPath) {
   if (!rawPath) return null;
 
-  // 优先匹配完整格式含 `github.com`
-  const reFull = /github\.com\/[\w.%+-]+(?:[\w./@~:%+=-]*)?/i;
+  // 优先匹配完整格式含 `github.com` 或 `raw.githubusercontent.com`
+  const reFull = /(?:raw\.githubusercontent|github)\.com\/[\w.%+-]+(?:[\w./@~:%+=-]*)?/i;
   let m = rawPath.match(reFull);
   if (m) return 'https://' + m[0];
 

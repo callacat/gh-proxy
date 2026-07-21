@@ -32,6 +32,13 @@ const urlTests = [
   ['/random/path', null],
   ['/https://gitlab.com/user/repo', null],
   ['/https:/github.com/user/repo', 'https://github.com/user/repo'],
+  // raw.githubusercontent.com
+  ['https://raw.githubusercontent.com/user/repo/refs/heads/main/proxy.yaml',
+   'https://raw.githubusercontent.com/user/repo/refs/heads/main/proxy.yaml'],
+  ['/raw.githubusercontent.com/user/repo/main/file.txt',
+   'https://raw.githubusercontent.com/user/repo/main/file.txt'],
+  ['/https://raw.githubusercontent.com/user/repo/branch/file',
+   'https://raw.githubusercontent.com/user/repo/branch/file'],
 ];
 
 for (const [input, expected] of urlTests) {

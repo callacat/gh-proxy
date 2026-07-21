@@ -11,7 +11,7 @@ const PASS_HEADERS = [
 
 function extractGitHubUrl(rawPath) {
   if (!rawPath) return null;
-  const m = rawPath.match(/github\.com\/[\w.%+-]+(?:[\w./@~:%+=-]*)?/i);
+  const m = rawPath.match(/(?:raw\.githubusercontent|github)\.com\/[\w.%+-]+(?:[\w./@~:%+=-]*)?/i);
   if (m) return 'https://' + m[0];
   const n = rawPath.match(/^\/(?:github|gh)\/([\w.%+-]+(?:[\w./@~:%+=-]*)?)\/?/i);
   return n ? 'https://github.com/' + n[1] : null;
