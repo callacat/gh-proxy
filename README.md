@@ -18,6 +18,9 @@ https://你的域名/https://github.com/user/repo/releases/download/v1.0.0/app.z
 | 分支 tar | `/https://github.com/user/repo/tarball/main` |
 | Git Clone | `/https://github.com/user/repo.git` |
 | 仓库主页 | `/https://github.com/user/repo` → 自动跳转下载 main.zip |
+| Gist | `/https://gist.github.com/user/123456789` → 自动代理 |
+| Gist Raw | `/https://gist.githubusercontent.com/user/123456789/raw/file.txt` |
+| Gist Archive | `/https://gist.github.com/user/123456789/archive/abc123.tar.gz` |
 | 短格式 | `/github/user/repo` 或 `/gh/user/repo` |
 
 ## 部署方式
@@ -93,9 +96,12 @@ node src/docker-server.js
 支持以下路径格式：
 
 ```
-/https://github.com/user/repo/raw/main/file.js    ← 标准格式
-/github/user/repo/raw/main/file.js                ← 短格式
-/gh/user/repo                                     ← 更短格式
+/https://github.com/user/repo/raw/main/file.js          ← 标准格式
+/github/user/repo/raw/main/file.js                      ← 短格式
+/gh/user/repo                                           ← 更短格式
+/https://raw.githubusercontent.com/user/repo/branch/f   ← Raw 域名
+/https://gist.github.com/user/123456789/raw/f           ← Gist
+/https://gist.githubusercontent.com/user/...            ← Gist Raw
 ```
 
 所有格式均自动添加 `https://` 协议前缀。
